@@ -34,6 +34,7 @@ LegacyLens is built to fill this gap: **open-source, Roslyn-grounded, provider-n
 
 LegacyLens implements a **six-layer architecture** that separates deterministic compiler analysis from probabilistic LLM reasoning:
 
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 1 — Ingestion          MSBuildWorkspace loader        │
 │  Layer 2 — Static Analysis    Roslyn SemanticModel + AppCAT  │
@@ -42,6 +43,7 @@ LegacyLens implements a **six-layer architecture** that separates deterministic 
 │  Layer 5 — Transformation     5-role agent pipeline          │
 │  Layer 6 — Validation         Build + test + Git commit      │
 └─────────────────────────────────────────────────────────────┘
+```
 
 ### The Five-Role Agent Pipeline
 
