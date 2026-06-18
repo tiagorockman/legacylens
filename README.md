@@ -148,6 +148,12 @@ Requirements:
 - MSBuild / Visual Studio Build Tools (for `MSBuildWorkspace`)
 
 ---
+## Quick Links
+
+| Resource | Description |
+|-----------|-------------|
+| 📄 Executive Summary | High-level overview |
+| 📄 Technical White Paper | Technical methodology |
 
 ## Contributing
 
