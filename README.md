@@ -152,8 +152,8 @@ Requirements:
 
 | Resource | Description |
 |-----------|-------------|
-| 📄 Executive Summary | High-level overview |
-| 📄 Technical White Paper | Technical methodology |
+| 📄 ![Executive Summary](https://github.com/tiagorockman/legacylens/blob/main/docs/Executive%20Summary.pdf) | High-level overview |
+| 📄 ![Technical White Paper](https://github.com/tiagorockman/legacylens/blob/main/docs/Technical%20White%20Paper.pdf) | Technical methodology |
 
 ## Contributing
 
