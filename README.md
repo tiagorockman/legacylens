@@ -170,7 +170,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## Author
 
 **Tiago Neves Sousa**
-Senior Software Engineer | M.S. Computer Science Candidate, Texas Tech University
+Senior Software Engineer | M.S. Computer Science Student, Texas Tech University
 Independent Researcher in AI-Assisted Software Modernization
 
 ---
