@@ -4,7 +4,7 @@
 
 ![Status](https://img.shields.io/badge/status-Phase%201%20In%20Progress-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Platform](https://img.shields.io/badge/platform-.NET%208-purple)
+![Platform](https://img.shields.io/badge/platform-.NET%2010-purple)
 ![LLM](https://img.shields.io/badge/LLM-Anthropic%20Claude-orange)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
 
@@ -74,8 +74,8 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 
 | Component | Technology |
 |-----------|-----------|
-| Runtime | .NET 8 LTS |
-| Compiler API | Microsoft.CodeAnalysis (Roslyn) 4.x |
+| Runtime | .NET 10 LTS |
+| Compiler API | Microsoft.CodeAnalysis (Roslyn) 5.x |
 | LLM — Primary | Anthropic Claude (`claude-sonnet-4-6`) via `Anthropic.SDK` |
 | LLM — Secondary | Azure OpenAI / AWS Bedrock (via `IChatClient`) |
 | Agent Orchestration | Microsoft Agent Framework 1.0 |
@@ -125,27 +125,32 @@ LegacyLens is grounded in peer-reviewed research:
 
 ## Getting Started
 
-> ⚠️ **Phase 1 is actively in development.** The project is not yet feature-complete. Architecture documentation, design documents, and the Phase 1 analysis core are the current focus.
+> ⚠️ **Phase 1 is actively in development.** The deterministic analysis core (baseline reports) is functional; LLM-powered layers arrive in Phase 2+.
 
 ```bash
 # Clone the repository
 git clone https://github.com/tiagorockman/legacylens.git
 cd legacylens
 
-# Restore dependencies
-dotnet restore
-
-# Build
+# Build and test
 dotnet build
+dotnet test
 
-# Run baseline analysis on a solution (Phase 1)
-dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln
+# Run the Phase 1 baseline analysis on a solution
+dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln --output out
+
+# Optionally map AppCAT incidents into the baseline
+dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln --appcat appcat-report.json --output out
 ```
 
+The `analyze` command produces:
+- `out/solution-baseline.md` — project inventory, dependency graph (mermaid), complexity hotspots, deprecated symbols, and AppCAT incident roll-up
+- `out/legacylens.db` — SQLite snapshot (`projects`, `symbols`, `reports` tables) used as the semantic substrate for later phases
+
 Requirements:
-- .NET 8 SDK
-- An Anthropic API key (set as `ANTHROPIC_API_KEY` environment variable)
-- MSBuild / Visual Studio Build Tools (for `MSBuildWorkspace`)
+- .NET 10 SDK (SDK-style solutions load out of the box)
+- Visual Studio Build Tools / MSBuild — only needed to analyze legacy non-SDK-style .NET Framework projects
+- An Anthropic API key (`ANTHROPIC_API_KEY`) — Phase 2+ only; the Phase 1 baseline is fully deterministic and offline
 
 ---
 ## Quick Links

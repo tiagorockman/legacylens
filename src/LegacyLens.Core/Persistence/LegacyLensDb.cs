@@ -1,0 +1,153 @@
+using System.Text.Json;
+using LegacyLens.Core.Analysis.Models;
+using Microsoft.Data.Sqlite;
+
+namespace LegacyLens.Core.Persistence;
+
+/// <summary>
+/// Embedded SQLite persistence (TDD §4.3). Phase 1 populates the `projects`, `symbols`,
+/// and `reports` tables; `business_logic` and `transformations` arrive in Phases 2–3.
+/// </summary>
+public sealed class LegacyLensDb : IDisposable
+{
+    private readonly SqliteConnection _connection;
+
+    public LegacyLensDb(string databasePath)
+    {
+        _connection = new SqliteConnection($"Data Source={databasePath}");
+        _connection.Open();
+        EnsureSchema();
+    }
+
+    public void SaveBaseline(BaselineResult baseline)
+    {
+        using var transaction = _connection.BeginTransaction();
+        var createdUtc = DateTime.UtcNow.ToString("O");
+
+        var errorsByProject = baseline.ProjectSymbols.ToDictionary(
+            p => NormalizeName(p.ProjectName),
+            p => p.CompilationErrorCount,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var project in baseline.Graph.Projects)
+        {
+            var errors = errorsByProject.GetValueOrDefault(NormalizeName(project.Name));
+            Execute(
+                """
+                INSERT INTO projects (run_id, solution_path, name, file_path, target_framework,
+                    project_references, package_references, document_count, build_status,
+                    appcat_incident_count, created_utc)
+                VALUES ($run, $sln, $name, $path, $tfm, $refs, $pkgs, $docs, $build, $appcat, $created)
+                """,
+                ("$run", baseline.RunId),
+                ("$sln", baseline.SolutionPath),
+                ("$name", project.Name),
+                ("$path", project.FilePath),
+                ("$tfm", project.TargetFramework),
+                ("$refs", JsonSerializer.Serialize(project.ProjectReferences)),
+                ("$pkgs", JsonSerializer.Serialize(project.PackageReferences.Select(p => $"{p.Name}@{p.Version}"))),
+                ("$docs", project.DocumentCount),
+                ("$build", errors == 0 ? "OK" : $"{errors} error(s)"),
+                ("$appcat", baseline.AppCat?.Incidents.Count ?? 0),
+                ("$created", createdUtc));
+        }
+
+        foreach (var symbol in baseline.ProjectSymbols.SelectMany(p => p.Symbols))
+        {
+            Execute(
+                """
+                INSERT INTO symbols (run_id, project_name, fqn, kind, file_path, complexity,
+                    is_deprecated, created_utc)
+                VALUES ($run, $project, $fqn, $kind, $path, $complexity, $deprecated, $created)
+                """,
+                ("$run", baseline.RunId),
+                ("$project", symbol.ProjectName),
+                ("$fqn", symbol.FullyQualifiedName),
+                ("$kind", symbol.Kind.ToString()),
+                ("$path", (object?)symbol.FilePath ?? DBNull.Value),
+                ("$complexity", symbol.Complexity),
+                ("$deprecated", symbol.IsDeprecated ? 1 : 0),
+                ("$created", createdUtc));
+        }
+
+        Execute(
+            """
+            INSERT INTO reports (run_id, solution_path, total_incidents, project_count,
+                symbol_count, wall_clock_seconds, created_utc)
+            VALUES ($run, $sln, $incidents, $projects, $symbols, $seconds, $created)
+            """,
+            ("$run", baseline.RunId),
+            ("$sln", baseline.SolutionPath),
+            ("$incidents", baseline.AppCat?.Incidents.Count ?? 0),
+            ("$projects", baseline.Graph.Projects.Count),
+            ("$symbols", baseline.ProjectSymbols.Sum(p => p.Symbols.Count)),
+            ("$seconds", baseline.Elapsed.TotalSeconds),
+            ("$created", createdUtc));
+
+        transaction.Commit();
+    }
+
+    private void EnsureSchema()
+    {
+        Execute(
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                solution_path TEXT NOT NULL,
+                name TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                target_framework TEXT,
+                project_references TEXT,
+                package_references TEXT,
+                document_count INTEGER NOT NULL DEFAULT 0,
+                build_status TEXT,
+                appcat_incident_count INTEGER NOT NULL DEFAULT 0,
+                created_utc TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS symbols (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                fqn TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                file_path TEXT,
+                complexity INTEGER NOT NULL DEFAULT 0,
+                is_deprecated INTEGER NOT NULL DEFAULT 0,
+                created_utc TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                solution_path TEXT NOT NULL,
+                total_incidents INTEGER NOT NULL DEFAULT 0,
+                project_count INTEGER NOT NULL DEFAULT 0,
+                symbol_count INTEGER NOT NULL DEFAULT 0,
+                wall_clock_seconds REAL NOT NULL DEFAULT 0,
+                created_utc TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_symbols_run_fqn ON symbols (run_id, fqn);
+            CREATE INDEX IF NOT EXISTS ix_projects_run ON projects (run_id);
+            """);
+    }
+
+    private void Execute(string sql, params (string Name, object Value)[] parameters)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = sql;
+        foreach (var (name, value) in parameters)
+            command.Parameters.AddWithValue(name, value);
+        command.ExecuteNonQuery();
+    }
+
+    private static string NormalizeName(string name)
+    {
+        var index = name.IndexOf(" (", StringComparison.Ordinal);
+        return index > 0 && name.EndsWith(')') ? name[..index] : name;
+    }
+
+    public void Dispose() => _connection.Dispose();
+}

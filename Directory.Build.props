@@ -1,0 +1,21 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Authors>Tiago Neves Sousa</Authors>
+    <Product>LegacyLens</Product>
+    <RepositoryUrl>https://github.com/tiagorockman/legacylens</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- MSBuild assemblies must resolve from the SDK located by MSBuildLocator at run time,
+       never from NuGet output (MSBL001). Applies to every project that transitively
+       references Microsoft.CodeAnalysis.Workspaces.MSBuild. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

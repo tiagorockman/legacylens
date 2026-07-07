@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore LegacyLens.sln
+
+      - name: Build
+        run: dotnet build LegacyLens.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test LegacyLens.sln --no-build --configuration Release --verbosity normal
+
+      - name: Self-analysis smoke test
+        run: dotnet run --project src/LegacyLens.CLI --configuration Release --no-build -- analyze --solution LegacyLens.sln --output baseline-out
+
+      - name: Upload baseline report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solution-baseline-${{ matrix.os }}
+          path: baseline-out/solution-baseline.md
