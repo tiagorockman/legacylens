@@ -2,7 +2,7 @@
 
 > **AI-Assisted .NET/C# Legacy Modernization Agent**
 
-![Status](https://img.shields.io/badge/status-Phase%201%20In%20Progress-yellow)
+![Status](https://img.shields.io/badge/status-Phase%201%20Nearly%20Complete-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-.NET%2010-purple)
 ![LLM](https://img.shields.io/badge/LLM-Anthropic%20Claude-orange)
@@ -105,7 +105,7 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 
 | Phase | Timeline | Status |
 |-------|----------|--------|
-| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟡 In Progress |
+| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional, [validated on ContosoUniversity](TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md) |
 | **Phase 2** — Business Logic Extraction (Anthropic API + SQLite persistence + arXiv preprint) | Aug–Nov 2026 | ⬜ Planned |
 | **Phase 3** — Full Transformation Pipeline (5-role agents + HIPAA/PCI DSS patterns + pilots) | Nov 2026–Mar 2027 | ⬜ Planned |
 | **Phase 4** — Production & Validation (Docker + enterprise pilots + academic publication) | Mar–Aug 2027 | ⬜ Planned |
@@ -151,6 +151,51 @@ Requirements:
 - .NET 10 SDK (SDK-style solutions load out of the box)
 - Visual Studio Build Tools / MSBuild — only needed to analyze legacy non-SDK-style .NET Framework projects
 - An Anthropic API key (`ANTHROPIC_API_KEY`) — Phase 2+ only; the Phase 1 baseline is fully deterministic and offline
+
+---
+
+## Phase 1 in Action — ContosoUniversity Baseline
+
+To validate the Phase 1 pipeline end-to-end, LegacyLens was run against
+[jbogard/ContosoUniversityDotNetCore](https://github.com/jbogard/ContosoUniversityDotNetCore) —
+the reference solution cited in the LegacyLens TDD, still targeting `netcoreapp2.0`
+(out of support since October 2018). Test subjects live under [TestLegacyProjects/](TestLegacyProjects/):
+
+```bash
+# Clone the test subject and restore it
+git clone https://github.com/jbogard/ContosoUniversityDotNetCore.git TestLegacyProjects/ContosoUniversityDotNetCore
+dotnet restore .\TestLegacyProjects\ContosoUniversityDotNetCore\ContosoUniversity.sln
+
+# Run the LegacyLens baseline analysis
+dotnet run --project src/LegacyLens.CLI -- analyze --solution .\TestLegacyProjects\ContosoUniversityDotNetCore\ContosoUniversity.sln --output TestLegacyProjects\ContosoUniversityDotNetCore-out
+```
+
+```text
+LegacyLens baseline complete in 8.6s
+  Projects : 2 (0 cycle(s))
+  Symbols  : 164 types, 206 methods
+  Report   : TestLegacyProjects\ContosoUniversityDotNetCore-out\solution-baseline.md
+  Database : TestLegacyProjects\ContosoUniversityDotNetCore-out\legacylens.db
+```
+
+Highlights from the generated baseline (full report: [TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md](TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md)):
+
+| Project | Target Framework | Project Refs | Packages | Documents | Build |
+|---|---|---:|---:|---:|---|
+| ContosoUniversity | `netcoreapp2.0` | 0 | 9 | 59 | ✅ OK |
+| ContosoUniversity.IntegrationTests | `netcoreapp2.0` | 1 | 9 | 24 | ✅ OK |
+
+Top complexity hotspots — the natural starting points for business-rule extraction (Phase 2) and transformation (Phase 3):
+
+| Complexity | Method |
+|---:|---|
+| 11 | `ContosoUniversity.Data.DbInitializer.Initialize(SchoolContext)` |
+| 10 | `ContosoUniversity.Features.Students.Index.QueryHandler.HandleCore(Query)` |
+| 6 | `ContosoUniversity.Models.Instructor.UpdateInstructorCourses(string[], IEnumerable<Course>)` |
+| 4 | `ContosoUniversity.Infrastructure.DbContextTransactionFilter.OnActionExecutionAsync(...)` |
+
+The 8.6-second wall-clock time sits comfortably inside the Phase 1 milestone of
+**< 5 minutes to baseline**, and the entire run is deterministic and offline — no LLM calls.
 
 ---
 ## Quick Links

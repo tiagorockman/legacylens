@@ -484,3 +484,7 @@ $RECYCLE.BIN/
 # LegacyLens analysis output
 legacylens-out/
 baseline-out/
+
+# Cloned test subjects (nested git repos) and analysis DBs - keep only the reports
+TestLegacyProjects/ContosoUniversityDotNetCore/
+TestLegacyProjects/**/*.db
