@@ -1,0 +1,11 @@
+<!--
+  Intentionally empty and intentionally NOT importing the parent.
+
+  MSBuild walks up the directory tree until it finds a Directory.Build.props, so without this file
+  the analyzed legacy solutions under TestLegacyProjects/ inherit the LegacyLens repository settings
+  (Nullable=enable, TreatWarningsAsErrors=true). That injected thousands of phantom CS86xx errors
+  into their baselines and made the reports describe our build configuration instead of their code.
+
+  Test subjects must be analyzed exactly as their own repositories define them.
+-->
+<Project />

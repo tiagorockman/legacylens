@@ -17,8 +17,16 @@ public sealed class SymbolExtractor
         var compilation = await project.GetCompilationAsync(cancellationToken)
             ?? throw new InvalidOperationException($"Project '{project.Name}' does not support compilation.");
 
-        var errorCount = compilation.GetDiagnostics(cancellationToken)
-            .Count(d => d.Severity == DiagnosticSeverity.Error);
+        var errors = compilation.GetDiagnostics(cancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        var topErrors = errors
+            .GroupBy(d => d.Id)
+            .OrderByDescending(g => g.Count())
+            .Take(5)
+            .Select(g => new DiagnosticSummary(g.Key, g.Count(), g.First().GetMessage()))
+            .ToList();
 
         var records = new List<SymbolRecord>();
         foreach (var type in EnumerateSourceTypes(compilation.Assembly.GlobalNamespace))
@@ -54,7 +62,7 @@ public sealed class SymbolExtractor
             }
         }
 
-        return new ProjectSymbols(project.Name, errorCount, records);
+        return new ProjectSymbols(project.Name, errors.Count, records) { TopErrors = topErrors };
     }
 
     private static IEnumerable<INamedTypeSymbol> EnumerateSourceTypes(INamespaceSymbol root)

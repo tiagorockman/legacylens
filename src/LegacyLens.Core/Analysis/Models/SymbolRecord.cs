@@ -25,8 +25,15 @@ public sealed record SymbolRecord
     public required bool IsDeprecated { get; init; }
 }
 
+/// <summary>A compiler error id with how often it occurred and one representative message.</summary>
+public sealed record DiagnosticSummary(string Id, int Count, string Example);
+
 /// <summary>Symbol index and build health for one project.</summary>
 public sealed record ProjectSymbols(
     string ProjectName,
     int CompilationErrorCount,
-    IReadOnlyList<SymbolRecord> Symbols);
+    IReadOnlyList<SymbolRecord> Symbols)
+{
+    /// <summary>Most frequent compiler errors, so a failing baseline says what actually broke.</summary>
+    public IReadOnlyList<DiagnosticSummary> TopErrors { get; init; } = [];
+}

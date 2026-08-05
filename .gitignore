@@ -488,3 +488,8 @@ baseline-out/
 # Cloned test subjects (nested git repos) and analysis DBs - keep only the reports
 TestLegacyProjects/ContosoUniversityDotNetCore/
 TestLegacyProjects/**/*.db
+
+# Cloned test subjects (nested git repos)
+TestLegacyProjects/nopCommerce/
+TestLegacyProjects/SmartStoreNET/
+TestLegacyProjects/*.json

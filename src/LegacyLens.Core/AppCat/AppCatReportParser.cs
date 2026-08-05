@@ -2,8 +2,15 @@ using System.Text.Json;
 
 namespace LegacyLens.Core.AppCat;
 
-/// <summary>A single modernization incident reported by AppCAT.</summary>
-public sealed record AppCatIncident(string RuleId, string Severity, string? Description, string? File);
+/// <summary>A single modernization incident reported by AppCAT, joined with its rule metadata.</summary>
+public sealed record AppCatIncident(
+    string RuleId,
+    string Severity,
+    string? Label,
+    string? File,
+    int? Line,
+    string? Project,
+    int Effort);
 
 /// <summary>Parsed AppCAT report with severity roll-ups (TDD Layer 2 — AppCAT incident mapping).</summary>
 public sealed record AppCatReport(string SourcePath, IReadOnlyList<AppCatIncident> Incidents)
@@ -11,87 +18,109 @@ public sealed record AppCatReport(string SourcePath, IReadOnlyList<AppCatInciden
     public IReadOnlyDictionary<string, int> CountsBySeverity => Incidents
         .GroupBy(i => i.Severity, StringComparer.OrdinalIgnoreCase)
         .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Total AppCAT story points — the tool's own migration effort estimate.</summary>
+    public int TotalEffort => Incidents.Sum(i => i.Effort);
 }
 
 /// <summary>
-/// Parses the JSON report exported by `dotnet appcat` (Azure Migrate application and code
-/// assessment). The exported schema varies across tool versions, so the parser walks the
-/// document and collects every object carrying a recognized AppCAT severity value instead
-/// of binding to a fixed shape.
+/// Parses the JSON report produced by <c>appcat analyze --serializer json</c> (Azure Migrate
+/// application and code assessment for .NET).
 /// </summary>
+/// <remarks>
+/// The report separates rule definitions from their occurrences: <c>rules</c> is a dictionary keyed
+/// by rule id carrying severity, label and effort, while the incidents themselves live in
+/// <c>projects[].ruleInstances[]</c> and reference a rule only by id. Severity therefore has to be
+/// joined in from the rule table — reading it off the incidents yields nothing.
+/// </remarks>
 public static class AppCatReportParser
 {
-    private static readonly HashSet<string> KnownSeverities = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Mandatory", "Optional", "Potential", "Information",
-    };
-
-    private static readonly string[] RuleIdProperties = ["ruleId", "rule", "id", "issueId"];
-    private static readonly string[] DescriptionProperties = ["description", "label", "message", "title"];
-    private static readonly string[] FileProperties = ["file", "path", "uri", "filePath", "location"];
+    private sealed record RuleDefinition(string Severity, string? Label, int Effort);
 
     public static AppCatReport Parse(string jsonPath)
     {
         var fullPath = Path.GetFullPath(jsonPath);
-        using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+
+        // AppCAT writes the report with a UTF-8 BOM, which JsonDocument rejects as invalid JSON.
+        using var stream = File.OpenRead(fullPath);
+        using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+        using var document = JsonDocument.Parse(reader.ReadToEnd());
+
+        var root = document.RootElement;
+        var rules = ReadRules(root);
 
         var incidents = new List<AppCatIncident>();
-        Walk(document.RootElement, incidents);
+        if (root.TryGetProperty("projects", out var projects) && projects.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var project in projects.EnumerateArray())
+                ReadProjectIncidents(project, rules, incidents);
+        }
+
         return new AppCatReport(fullPath, incidents);
     }
 
-    private static void Walk(JsonElement element, List<AppCatIncident> incidents)
+    private static Dictionary<string, RuleDefinition> ReadRules(JsonElement root)
     {
-        switch (element.ValueKind)
+        var rules = new Dictionary<string, RuleDefinition>(StringComparer.OrdinalIgnoreCase);
+        if (!root.TryGetProperty("rules", out var rulesElement) || rulesElement.ValueKind != JsonValueKind.Object)
+            return rules;
+
+        foreach (var rule in rulesElement.EnumerateObject())
         {
-            case JsonValueKind.Object:
-                if (TryReadIncident(element, out var incident))
-                    incidents.Add(incident);
-
-                foreach (var property in element.EnumerateObject())
-                    Walk(property.Value, incidents);
-                break;
-
-            case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
-                    Walk(item, incidents);
-                break;
+            rules[rule.Name] = new RuleDefinition(
+                GetString(rule.Value, "severity") ?? "Unknown",
+                GetString(rule.Value, "label") ?? GetString(rule.Value, "description"),
+                GetInt32(rule.Value, "effort") ?? 0);
         }
+
+        return rules;
     }
 
-    private static bool TryReadIncident(JsonElement element, out AppCatIncident incident)
+    private static void ReadProjectIncidents(
+        JsonElement project,
+        IReadOnlyDictionary<string, RuleDefinition> rules,
+        List<AppCatIncident> incidents)
     {
-        incident = default!;
-        if (!TryGetString(element, ["severity"], out var severity) || !KnownSeverities.Contains(severity))
-            return false;
+        if (!project.TryGetProperty("ruleInstances", out var instances) || instances.ValueKind != JsonValueKind.Array)
+            return;
 
-        TryGetString(element, RuleIdProperties, out var ruleId);
-        TryGetString(element, DescriptionProperties, out var description);
-        TryGetString(element, FileProperties, out var file);
+        var projectName = project.TryGetProperty("properties", out var properties)
+            ? GetString(properties, "appName")
+            : null;
 
-        incident = new AppCatIncident(
-            string.IsNullOrWhiteSpace(ruleId) ? "(unknown rule)" : ruleId,
-            severity,
-            string.IsNullOrWhiteSpace(description) ? null : description,
-            string.IsNullOrWhiteSpace(file) ? null : file);
-        return true;
-    }
-
-    private static bool TryGetString(JsonElement element, string[] candidates, out string value)
-    {
-        foreach (var property in element.EnumerateObject())
+        foreach (var instance in instances.EnumerateArray())
         {
-            if (property.Value.ValueKind != JsonValueKind.String)
+            var ruleId = GetString(instance, "ruleId");
+            if (string.IsNullOrWhiteSpace(ruleId))
                 continue;
 
-            if (candidates.Any(c => string.Equals(c, property.Name, StringComparison.OrdinalIgnoreCase)))
+            var rule = rules.GetValueOrDefault(ruleId);
+            string? file = null;
+            int? line = null;
+            if (instance.TryGetProperty("location", out var location) && location.ValueKind == JsonValueKind.Object)
             {
-                value = property.Value.GetString()!;
-                return true;
+                file = GetString(location, "path");
+                line = GetInt32(location, "line");
             }
-        }
 
-        value = string.Empty;
-        return false;
+            incidents.Add(new AppCatIncident(
+                ruleId,
+                rule?.Severity ?? "Unknown",
+                rule?.Label,
+                file,
+                line,
+                projectName ?? GetString(instance, "projectPath"),
+                rule?.Effort ?? 0));
+        }
     }
+
+    private static string? GetString(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static int? GetInt32(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetInt32()
+            : null;
 }

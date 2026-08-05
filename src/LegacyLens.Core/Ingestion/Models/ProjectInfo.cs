@@ -20,4 +20,12 @@ public sealed record ProjectInfo
 
     /// <summary>Number of compilable source documents.</summary>
     public required int DocumentCount { get; init; }
+
+    /// <summary>
+    /// True when the project declares packages.config dependencies but the solution's packages
+    /// folder is missing. `dotnet restore` does not handle packages.config, so a legacy solution is
+    /// easily analyzed un-restored — which silently strips every reference, including mscorlib, and
+    /// floods the baseline with meaningless type-resolution errors.
+    /// </summary>
+    public bool NeedsPackageRestore { get; init; }
 }

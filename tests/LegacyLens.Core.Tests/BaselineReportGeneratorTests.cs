@@ -95,9 +95,9 @@ public sealed class BaselineReportGeneratorTests
 
         var appCat = new AppCatReport("report.json",
         [
-            new AppCatIncident("Api.WebForms", "Mandatory", "Web Forms unavailable", "Default.aspx"),
-            new AppCatIncident("Binary.Framework", "Mandatory", null, null),
-            new AppCatIncident("Config.Tls", "Potential", "TLS 1.0", "web.config"),
+            new AppCatIncident("Api.WebForms", "Mandatory", "Web Forms unavailable", "Default.aspx", 12, "Web", 3),
+            new AppCatIncident("Binary.Framework", "Mandatory", null, null, null, "Web", 3),
+            new AppCatIncident("Config.Tls", "Potential", "TLS 1.0", "web.config", null, "Web", 1),
         ]);
 
         return new BaselineResult

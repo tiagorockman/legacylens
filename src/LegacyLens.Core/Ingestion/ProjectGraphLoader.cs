@@ -60,7 +60,18 @@ public sealed class ProjectGraphLoader
         EnsureMsBuildRegistered();
 
         var diagnostics = new List<string>();
-        var workspace = MSBuildWorkspace.Create();
+
+        // Legacy non-SDK projects need the .NET Framework targeting packs to resolve even mscorlib;
+        // without them the semantic model degrades to error symbols (see ReferenceAssemblyResolver).
+        var properties = new Dictionary<string, string>();
+        var referenceAssemblyRoot = ReferenceAssemblyResolver.TargetFrameworkRootPath;
+        if (referenceAssemblyRoot is not null)
+        {
+            properties["TargetFrameworkRootPath"] = referenceAssemblyRoot;
+            progress?.Report($"Using .NET Framework reference assemblies from {referenceAssemblyRoot}");
+        }
+
+        var workspace = MSBuildWorkspace.Create(properties);
         workspace.RegisterWorkspaceFailedHandler(e =>
         {
             lock (diagnostics)
@@ -82,7 +93,7 @@ public sealed class ProjectGraphLoader
                 continue;
 
             progress?.Report($"  Inspecting project {project.Name}");
-            projects.Add(CreateProjectInfo(project, solution));
+            projects.Add(CreateProjectInfo(project, solution, Path.GetDirectoryName(fullPath)!));
         }
 
         return new SolutionAnalysis
@@ -95,7 +106,7 @@ public sealed class ProjectGraphLoader
         };
     }
 
-    private static ProjectInfo CreateProjectInfo(Project project, Solution solution)
+    private static ProjectInfo CreateProjectInfo(Project project, Solution solution, string solutionDirectory)
     {
         var referencedNames = project.ProjectReferences
             .Select(r => solution.GetProject(r.ProjectId)?.Name)
@@ -112,6 +123,7 @@ public sealed class ProjectGraphLoader
             ProjectReferences = referencedNames,
             PackageReferences = ResolvePackageReferences(project.FilePath),
             DocumentCount = project.Documents.Count(),
+            NeedsPackageRestore = NeedsPackageRestore(project.FilePath, solutionDirectory),
         };
     }
 
@@ -120,6 +132,22 @@ public sealed class ProjectGraphLoader
     {
         var index = name.IndexOf(" (", StringComparison.Ordinal);
         return index > 0 && name.EndsWith(')') ? name[..index] : name;
+    }
+
+    /// <summary>
+    /// A packages.config project whose solution has no packages folder was never restored — MSBuild
+    /// then fails to import the packages' targets and resolves no references at all.
+    /// </summary>
+    internal static bool NeedsPackageRestore(string? projectFilePath, string solutionDirectory)
+    {
+        if (projectFilePath is null)
+            return false;
+
+        var packagesConfig = Path.Combine(Path.GetDirectoryName(projectFilePath)!, "packages.config");
+        if (!File.Exists(packagesConfig))
+            return false;
+
+        return !Directory.Exists(Path.Combine(solutionDirectory, "packages"));
     }
 
     internal static string ResolveTargetFramework(string? projectFilePath)

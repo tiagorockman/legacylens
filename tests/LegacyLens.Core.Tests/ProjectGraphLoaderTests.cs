@@ -52,6 +52,31 @@ public sealed class ProjectGraphLoaderTests(SampleSolutionFixture fixture)
     }
 
     [Fact]
+    public void NeedsPackageRestore_TrueOnlyForUnrestoredPackagesConfigProjects()
+    {
+        var solutionDirectory = Path.Combine(fixture.RootPath, "restore-check");
+        var projectDirectory = Path.Combine(solutionDirectory, "Legacy");
+        Directory.CreateDirectory(projectDirectory);
+        var csproj = Path.Combine(projectDirectory, "Legacy.csproj");
+        File.WriteAllText(csproj, "<Project />");
+
+        // No packages.config at all: nothing to restore.
+        Assert.False(ProjectGraphLoader.NeedsPackageRestore(csproj, solutionDirectory));
+
+        File.WriteAllText(Path.Combine(projectDirectory, "packages.config"),
+            """
+            <?xml version="1.0" encoding="utf-8"?>
+            <packages>
+              <package id="Newtonsoft.Json" version="12.0.3" targetFramework="net472" />
+            </packages>
+            """);
+        Assert.True(ProjectGraphLoader.NeedsPackageRestore(csproj, solutionDirectory));
+
+        Directory.CreateDirectory(Path.Combine(solutionDirectory, "packages"));
+        Assert.False(ProjectGraphLoader.NeedsPackageRestore(csproj, solutionDirectory));
+    }
+
+    [Fact]
     public void ResolvePackageReferences_ReadsSdkStyleAndPackagesConfig()
     {
         var directory = Path.Combine(fixture.RootPath, "pkgtest");
