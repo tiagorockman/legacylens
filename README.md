@@ -1,4 +1,4 @@
-# LegacyLens 🔍
+﻿# LegacyLens 🔍
 
 > **AI-Assisted .NET/C# Legacy Modernization Agent**
 
@@ -8,7 +8,7 @@
 ![LLM](https://img.shields.io/badge/LLM-Anthropic%20Claude-orange)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
 
-LegacyLens is an open-source, AI-assisted modernization agent built in **C#/.NET 8** that helps organizations analyze, refactor, and migrate legacy .NET Framework codebases into secure, cloud-ready architectures aligned with modern compliance requirements (HIPAA, PCI DSS, FedRAMP, CMMC).
+LegacyLens is an open-source, AI-assisted modernization agent built in **C#/.NET 10** that helps organizations analyze, refactor, and migrate legacy .NET Framework codebases into secure, cloud-ready architectures aligned with modern compliance requirements (HIPAA, PCI DSS, FedRAMP, CMMC).
 
 Unlike existing tools that feed raw source files to an LLM, LegacyLens grounds every AI prompt in **compiler-accurate semantic information** extracted via the Roslyn compiler API (`Microsoft.CodeAnalysis`) — eliminating hallucinated package references and invalid type mismatches documented as failure modes in commercial alternatives.
 
@@ -83,7 +83,7 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 | Persistence | SQLite + AzureSQL via `Microsoft.Data.Sqlite` + `Microsoft.Data.SqlClient` |
 | Optional Graph DB | Neo4j (dependency graph + migration-wave ordering) |
 | Version Control | LibGit2Sharp (per-change Git commits) |
-| Containerization | Docker / .NET 8 base image |
+| Containerization | Docker / .NET 10 base image |
 | CI/CD | GitHub Actions + AzureDevops |
 
 ---
@@ -105,7 +105,7 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 
 | Phase | Timeline | Status |
 |-------|----------|--------|
-| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional, [validated on ContosoUniversity](TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md) |
+| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional and [validated on 3 OSS solutions](TestLegacyProjects/README.md); Layer 3 `TraceBuilder` remaining |
 | **Phase 2** — Business Logic Extraction (Anthropic API + SQLite persistence + arXiv preprint) | Aug–Nov 2026 | ⬜ Planned |
 | **Phase 3** — Full Transformation Pipeline (5-role agents + HIPAA/PCI DSS patterns + pilots) | Nov 2026–Mar 2027 | ⬜ Planned |
 | **Phase 4** — Production & Validation (Docker + enterprise pilots + academic publication) | Mar–Aug 2027 | ⬜ Planned |
@@ -148,62 +148,81 @@ The `analyze` command produces:
 - `out/legacylens.db` — SQLite snapshot (`projects`, `symbols`, `reports` tables) used as the semantic substrate for later phases
 
 Requirements:
-- .NET 10 SDK (SDK-style solutions load out of the box)
-- Visual Studio Build Tools / MSBuild — only needed to analyze legacy non-SDK-style .NET Framework projects
+- .NET 10 SDK — the only prerequisite. Visual Studio is **not** required, including for legacy non-SDK-style .NET Framework projects: LegacyLens stages the .NET Framework 2.0–4.8 reference assemblies itself, so a compiler-accurate load works on a bare SDK install and inside Linux containers.
+- `nuget restore` for solutions using `packages.config` — `dotnet restore` does not support that format. LegacyLens detects the un-restored case and prints the fix at the top of the report.
 - An Anthropic API key (`ANTHROPIC_API_KEY`) — Phase 2+ only; the Phase 1 baseline is fully deterministic and offline
 
 ---
 
-## Phase 1 in Action — ContosoUniversity Baseline
+## Phase 1 in Action — Validated Baselines
 
-To validate the Phase 1 pipeline end-to-end, LegacyLens was run against
-[jbogard/ContosoUniversityDotNetCore](https://github.com/jbogard/ContosoUniversityDotNetCore) —
-the reference solution cited in the LegacyLens TDD, still targeting `netcoreapp2.0`
-(out of support since October 2018). Test subjects live under [TestLegacyProjects/](TestLegacyProjects/):
+LegacyLens is validated end-to-end against three open-source solutions, two of them genuine legacy
+.NET Framework codebases of the kind the project targets. Every run below was performed on a machine
+with **no Visual Studio installed** — only the .NET 10 SDK.
+
+| Solution | Target Framework | Projects | Types / Methods | Baseline |
+|---|---|---:|---:|---:|
+| [ContosoUniversityDotNetCore](https://github.com/jbogard/ContosoUniversityDotNetCore) | `netcoreapp2.0` | 2 | 163 / 205 | **2.5s** |
+| [nopCommerce 3.90](https://github.com/nopSolutions/nopCommerce) | `.NET Framework 4.5.1` | 31 | 2,408 / 7,207 | **15.1s** |
+| [SmartStoreNET 4.2.0](https://github.com/smartstore/SmartStoreNET) | `.NET Framework 4.7.2` | 25 | 4,142 / 13,968 | **18.7s** |
+
+All **58 projects compile cleanly under Roslyn**, so the semantic model behind these baselines is
+compiler-accurate rather than a syntax-only approximation — the property the whole trace-based
+approach depends on. Every run is deterministic and offline: no LLM calls are involved in Phase 1.
+
+Reproduction steps and the full generated reports live in
+[TestLegacyProjects/](TestLegacyProjects/README.md).
 
 ```bash
-# Clone the test subject and restore it
-git clone https://github.com/jbogard/ContosoUniversityDotNetCore.git TestLegacyProjects/ContosoUniversityDotNetCore
-dotnet restore .\TestLegacyProjects\ContosoUniversityDotNetCore\ContosoUniversity.sln
-
-# Run the LegacyLens baseline analysis
-dotnet run --project src/LegacyLens.CLI -- analyze --solution .\TestLegacyProjects\ContosoUniversityDotNetCore\ContosoUniversity.sln --output TestLegacyProjects\ContosoUniversityDotNetCore-out
+dotnet run --project src/LegacyLens.CLI -- analyze --solution .\TestLegacyProjects\nopCommerce\src\NopCommerce.sln --appcat TestLegacyProjects\nopCommerce-appcat.json --output TestLegacyProjects\nopCommerce-out
 ```
 
 ```text
-LegacyLens baseline complete in 8.6s
-  Projects : 2 (0 cycle(s))
-  Symbols  : 164 types, 206 methods
-  Report   : TestLegacyProjects\ContosoUniversityDotNetCore-out\solution-baseline.md
-  Database : TestLegacyProjects\ContosoUniversityDotNetCore-out\legacylens.db
+LegacyLens baseline complete in 15.1s
+  Projects : 31 (0 cycle(s))
+  Symbols  : 2408 types, 7207 methods
+  AppCAT   : 1201 incident(s)
+  Report   : out\solution-baseline.md
+  Database : out\legacylens.db
 ```
 
-Highlights from the generated baseline (full report: [TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md](TestLegacyProjects/ContosoUniversityDotNetCore-out/solution-baseline.md)):
+### Complexity hotspots — where Phase 2 will start
 
-| Project | Target Framework | Project Refs | Packages | Documents | Build |
-|---|---|---:|---:|---:|---|
-| ContosoUniversity | `netcoreapp2.0` | 0 | 9 | 59 | ✅ OK |
-| ContosoUniversity.IntegrationTests | `netcoreapp2.0` | 1 | 9 | 24 | ✅ OK |
+The baseline ranks every method by cyclomatic complexity. In real legacy systems the top of that
+list is where undocumented business rules accumulate, which is exactly what the
+`BusinessLogicExtractorAgent` is being built to recover:
 
-Top complexity hotspots — the natural starting points for business-rule extraction (Phase 2) and transformation (Phase 3):
+| Complexity | Method | Solution |
+|---:|---|---|
+| 174 | `SmartStore.Services.Search.LinqCatalogSearchService.GetProductQuery(...)` | SmartStoreNET |
+| 163 | `Nop.Services.ExportImport.ImportManager.ImportProductsFromXlsx(Stream)` | nopCommerce |
+| 157 | `SmartStore.Web.Controllers.CatalogHelper.PrepareProductDetailModel(...)` | SmartStoreNET |
+| 122 | `SmartStore.Services.Orders.OrderProcessingService.PlaceOrder(...)` | SmartStoreNET |
+| 110 | `Nop.Services.Common.PdfService.PrintOrdersToPdf(...)` | nopCommerce |
+| 101 | `Nop.Services.Catalog.ProductService.SearchProducts(...)` — 27 parameters | nopCommerce |
 
-| Complexity | Method |
-|---:|---|
-| 11 | `ContosoUniversity.Data.DbInitializer.Initialize(SchoolContext)` |
-| 10 | `ContosoUniversity.Features.Students.Index.QueryHandler.HandleCore(Query)` |
-| 6 | `ContosoUniversity.Models.Instructor.UpdateInstructorCourses(string[], IEnumerable<Course>)` |
-| 4 | `ContosoUniversity.Infrastructure.DbContextTransactionFilter.OnActionExecutionAsync(...)` |
+### AppCAT integration
 
-The 8.6-second wall-clock time sits comfortably inside the Phase 1 milestone of
-**< 5 minutes to baseline**, and the entire run is deterministic and offline — no LLM calls.
+The nopCommerce run ingests a real report from Microsoft's `dotnet appcat`, mapping migration
+incidents into the baseline alongside the Roslyn analysis:
+
+| Severity | Incidents |
+|---|---:|
+| Potential | 919 |
+| Optional | 276 |
+| Mandatory | 6 |
+
+1,201 incidents totalling **2,453 story points** of AppCAT-estimated effort, with the dominant rules
+being hardcoded URLs (557), local or network I/O (280) and hardcoded sensitive data (195).
 
 ---
+
 ## Quick Links
 
 | Resource | Description |
 |-----------|-------------|
-| 📄 ![Executive Summary](https://github.com/tiagorockman/legacylens/blob/main/docs/Executive%20Summary.pdf) | High-level overview |
-| 📄 ![Technical White Paper](https://github.com/tiagorockman/legacylens/blob/main/docs/Technical%20White%20Paper.pdf) | Technical methodology |
+| 📄 [Executive Summary](docs/Executive%20Summary.pdf) | High-level overview |
+| 📄 [Technical White Paper](docs/Technical%20White%20Paper.pdf) | Technical methodology |
 
 ## Contributing
 
