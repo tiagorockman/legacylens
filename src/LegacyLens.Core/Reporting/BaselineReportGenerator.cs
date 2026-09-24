@@ -1,5 +1,6 @@
 using System.Text;
 using LegacyLens.Core.Analysis.Models;
+using LegacyLens.Core.Constraints.Models;
 
 namespace LegacyLens.Core.Reporting;
 
@@ -33,6 +34,7 @@ public static class BaselineReportGenerator
         AppendComplexityHotspots(sb, baseline, topComplexMethods);
         AppendDeprecatedSymbols(sb, baseline);
         AppendAppCat(sb, baseline);
+        AppendConstraints(sb, baseline);
         AppendWorkspaceDiagnostics(sb, baseline);
 
         return sb.ToString();
@@ -241,6 +243,85 @@ public static class BaselineReportGenerator
 
         sb.AppendLine();
     }
+
+    private const int MaxFindingsPerRule = 10;
+
+    /// <summary>
+    /// Reports the organization's own technical constraints against the solution. Each rule carries one
+    /// of four verdicts; a rule the evaluator cannot decide is reported as requiring human review rather
+    /// than passing silently.
+    /// </summary>
+    private static void AppendConstraints(StringBuilder sb, BaselineResult baseline)
+    {
+        if (baseline.Constraints is not { } evaluation)
+            return;
+
+        sb.AppendLine("## Organization Constraints");
+        sb.AppendLine();
+        var organization = evaluation.Policy.Organization is { } name ? $" — {name}" : string.Empty;
+        sb.AppendLine(
+            $"Policy: `{evaluation.Policy.SourceName}`{organization} " +
+            $"(schema v{evaluation.Policy.SchemaVersion}, {evaluation.Results.Count} rule(s)).");
+        sb.AppendLine();
+
+        sb.AppendLine("| Verdict | Rules |");
+        sb.AppendLine("|---|---:|");
+        foreach (var verdict in Enum.GetValues<ConstraintVerdict>())
+            sb.AppendLine($"| {VerdictLabel(verdict)} | {evaluation.Count(verdict)} |");
+        sb.AppendLine();
+
+        sb.AppendLine("| Rule | Kind | Verdict | Projects | Violations | Unresolved |");
+        sb.AppendLine("|---|---|---|---:|---:|---:|");
+        foreach (var result in evaluation.Results)
+        {
+            sb.AppendLine(
+                $"| `{result.RuleId}` {result.Title} | {result.Kind} | {VerdictLabel(result.Verdict)} " +
+                $"| {result.ProjectsEvaluated} | {result.Violations.Count} | {result.Unresolved.Count} |");
+        }
+
+        sb.AppendLine();
+
+        var detailed = evaluation.Results
+            .Where(r => r.Violations.Count > 0 || r.Unresolved.Count > 0)
+            .ToList();
+        if (detailed.Count == 0)
+            return;
+
+        sb.AppendLine("### Findings");
+        sb.AppendLine();
+        foreach (var result in detailed)
+        {
+            sb.AppendLine($"**`{result.RuleId}` {result.Title}** — {VerdictLabel(result.Verdict)}");
+            sb.AppendLine();
+            if (result.Rationale is { } rationale)
+                sb.AppendLine($"_{rationale}_");
+            if (result.Reason is { } reason)
+                sb.AppendLine($"_{reason}_");
+            if (result.Rationale is not null || result.Reason is not null)
+                sb.AppendLine();
+
+            AppendFindings(sb, result.Violations);
+            AppendFindings(sb, result.Unresolved);
+            sb.AppendLine();
+        }
+    }
+
+    private static void AppendFindings(StringBuilder sb, IReadOnlyList<ConstraintFinding> findings)
+    {
+        foreach (var finding in findings.Take(MaxFindingsPerRule))
+            sb.AppendLine($"- {finding.Project} — {finding.Detail}");
+
+        if (findings.Count > MaxFindingsPerRule)
+            sb.AppendLine($"- _...and {findings.Count - MaxFindingsPerRule} more_");
+    }
+
+    private static string VerdictLabel(ConstraintVerdict verdict) => verdict switch
+    {
+        ConstraintVerdict.Compliant => "✅ Compliant",
+        ConstraintVerdict.NonCompliant => "❌ Non-compliant",
+        ConstraintVerdict.RequiresHumanReview => "🔍 Requires human review",
+        _ => "➖ Not applicable",
+    };
 
     private static void AppendWorkspaceDiagnostics(StringBuilder sb, BaselineResult baseline)
     {

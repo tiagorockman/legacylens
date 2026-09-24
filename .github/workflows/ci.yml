@@ -32,10 +32,16 @@ jobs:
         run: dotnet test LegacyLens.sln --no-build --configuration Release --verbosity normal
 
       - name: Self-analysis smoke test
-        run: dotnet run --project src/LegacyLens.CLI --configuration Release --no-build -- analyze --solution LegacyLens.sln --output baseline-out
+        run: dotnet run --project src/LegacyLens.CLI --configuration Release --no-build -- analyze --solution LegacyLens.sln --constraints TestLegacyProjects/example-constraints-policy.json --output baseline-out
 
-      - name: Upload baseline report
+      - name: Self-trace smoke test
+        run: dotnet run --project src/LegacyLens.CLI --configuration Release --no-build -- trace --solution LegacyLens.sln --top 5 --output baseline-out
+
+      - name: Upload baseline and traces
         uses: actions/upload-artifact@v4
         with:
           name: solution-baseline-${{ matrix.os }}
-          path: baseline-out/solution-baseline.md
+          path: |
+            baseline-out/solution-baseline.md
+            baseline-out/trace-index.md
+            baseline-out/traces/

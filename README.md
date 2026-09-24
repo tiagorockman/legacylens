@@ -32,7 +32,23 @@ LegacyLens is built to fill this gap: **open-source, Roslyn-grounded, provider-n
 
 ## How It Works
 
-LegacyLens implements a **six-layer architecture** that separates deterministic compiler analysis from probabilistic LLM reasoning:
+LegacyLens keeps apart three things that modernization tooling usually mixes together: what the compiler can prove, what an organization requires, and what a language model infers.
+
+```text
+      Reusable analysis and modernization core
+                      ↓
+      Organization-specific constraints      approved patterns, permitted and prohibited
+                      ↓                      technologies, security and testing requirements
+      Specialized analysis and AI-assisted capabilities
+                      ↓
+                  Validation
+                      ↓
+                 Human review
+```
+
+The core is deterministic and compiler-grounded, and stays reusable across organizations. Constraints are supplied as **policy rather than code**, so the same core adapts to a different environment without being rewritten — and a rule the framework cannot decide from static evidence is reported as *requiring human review*, never as a silent pass. AI-assisted capabilities operate inside those constraints, and their output is validated and reviewed by an engineer. The framework is not designed to modify mission-critical software autonomously.
+
+### Pipeline stages
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,7 +61,7 @@ LegacyLens implements a **six-layer architecture** that separates deterministic 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### The Five-Role Agent Pipeline
+### The Five-Role Agent Pipeline — planned, not implemented
 
 Inspired by the VAPU architecture (Ala-Salmi et al., Tampere University, arXiv:2510.18509), which demonstrated a **22.5% improvement** in fulfilled modernization requirements over single-pass LLM approaches:
 
@@ -61,12 +77,26 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 
 ## Key Features
 
-- **Roslyn-First Semantics** — Every LLM prompt is grounded with compiler-accurate type information, symbol resolution, control/data-flow graphs, and cross-project dependency edges. No hallucinated namespaces or NuGet packages.
-- **Business Logic Extraction** — A dedicated agent extracts and persists domain rules, invariants, and integration contracts to SQLite *before* any transformation occurs, preserving institutional knowledge that conventional migrations lose.
-- **Compliance Pattern Library** — Roslyn `DiagnosticAnalyzer` + `CodeFixProvider` pairs targeting HIPAA Security Rule, PCI DSS v4.0, OWASP Top 10 for .NET, and SBOM generation (SPDX/CycloneDX).
-- **Provider-Neutral LLM** — `IChatClient` abstraction supports Anthropic Claude (default), Azure OpenAI, AWS Bedrock, and locally-hosted models. Deploy in fully air-gapped VPC environments.
-- **Reproducible Runs** — Every run is pinned to a model snapshot, deterministic chunking strategy, and full audit log committed to Git.
-- **On-Premises Deployable** — Docker-packaged with no telemetry by default. Designed for FedRAMP-bound agencies and HIPAA covered entities.
+### Implemented today
+
+- **Roslyn-first semantics** — Analysis is built on compiler-accurate type information, symbol resolution and cross-project dependency edges, not on source text. Validated against three open-source solutions; see [Phase 1 in Action](#phase-1-in-action--validated-baselines).
+- **Compiler-verified traces** — Each traced method carries its resolved signature, inheritance, call edges, state access, data flow and control-flow summary, plus a **grounding indicator** stating whether the compiler resolved every symbol. Unresolved names are never presented as real.
+- **Organization constraints as policy** — A JSON policy of approved and prohibited technologies, minimum dependency versions and approved target frameworks is evaluated against the solution. Each rule is reported as **Compliant**, **Non-Compliant**, **Requires Human Review**, or **Not Applicable**; a rule that cannot be decided statically is never silently passed.
+- **Modernization incident mapping** — Ingests Microsoft AppCAT reports and maps incidents onto the specific methods they occur in.
+- **No Visual Studio required** — Stages the .NET Framework 2.0–4.8 reference assemblies itself, so legacy non-SDK solutions analyze on a bare .NET SDK install, including in Linux containers.
+- **Deterministic and offline** — Byte-identical output across runs. The analysis core makes no network calls and emits no telemetry.
+
+### Planned — see [Roadmap](#roadmap)
+
+- **Business logic extraction** — A dedicated agent to extract and persist domain rules, invariants and integration contracts to SQLite *before* any transformation occurs.
+- **Five-role transformation pipeline** — Manager → Prompt-Maker → Execution → Verification → Finalizer.
+- **Compliance pattern library** — Roslyn `DiagnosticAnalyzer` + `CodeFixProvider` pairs targeting HIPAA Security Rule, PCI DSS v4.0, OWASP Top 10 for .NET, and SBOM generation (SPDX/CycloneDX).
+- **Security-oriented analysis** — Detection of vulnerable dependencies, insecure patterns and modernization-related security concerns.
+- **Provider-neutral LLM** — `IChatClient` abstraction over Anthropic Claude, Azure OpenAI, AWS Bedrock and locally-hosted models, for fully air-gapped deployment.
+
+### Secure development alignment
+
+Security is treated as part of the modernization lifecycle rather than a step performed after it. The constraint mechanism above is the first implemented piece of that approach: organizational security requirements — permitted technologies, minimum dependency versions, authentication requirements — are evaluated as policy and reported per rule. The design follows NIST SP 800-218 (Secure Software Development Framework), CISA Secure by Design, and the explicit *hard constraints* pattern described in NIST's 2026 work on agentic AI-assisted coding, under which non-negotiable validity requirements take priority over contextual instructions given to an agent. Security-oriented code analysis itself is planned, not implemented.
 
 ---
 
@@ -105,7 +135,7 @@ Manager → Prompt-Maker → Execution → Verification → Finalizer
 
 | Phase | Timeline | Status |
 |-------|----------|--------|
-| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional and [validated on 3 OSS solutions](TestLegacyProjects/README.md); Layer 3 `TraceBuilder` remaining |
+| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional and [validated on 3 OSS solutions](TestLegacyProjects/README.md); Layer 3 `TraceBuilder` implemented and validated |
 | **Phase 2** — Business Logic Extraction (Anthropic API + SQLite persistence + arXiv preprint) | Aug–Nov 2026 | ⬜ Planned |
 | **Phase 3** — Full Transformation Pipeline (5-role agents + HIPAA/PCI DSS patterns + pilots) | Nov 2026–Mar 2027 | ⬜ Planned |
 | **Phase 4** — Production & Validation (Docker + enterprise pilots + academic publication) | Mar–Aug 2027 | ⬜ Planned |
@@ -125,7 +155,7 @@ LegacyLens is grounded in peer-reviewed research:
 
 ## Getting Started
 
-> ⚠️ **Phase 1 is actively in development.** The deterministic analysis core (baseline reports) is functional; LLM-powered layers arrive in Phase 2+.
+> ⚠️ **Phase 1 is actively in development.** The deterministic core — baseline reports and compiler-verified method traces — is functional; LLM-powered layers arrive in Phase 2+.
 
 ```bash
 # Clone the repository
@@ -141,11 +171,36 @@ dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln 
 
 # Optionally map AppCAT incidents into the baseline
 dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln --appcat appcat-report.json --output out
+
+# Evaluate the solution against an organization's own technical constraints
+dotnet run --project src/LegacyLens.CLI -- analyze --solution /path/to/your.sln --constraints my-policy.json --output out
 ```
+
+A constraint policy is plain JSON — approved and prohibited packages, minimum dependency versions, approved target frameworks, and requirements that must be verified by a person. See [TestLegacyProjects/example-constraints-policy.json](TestLegacyProjects/example-constraints-policy.json) for a worked example.
 
 The `analyze` command produces:
 - `out/solution-baseline.md` — project inventory, dependency graph (mermaid), complexity hotspots, deprecated symbols, and AppCAT incident roll-up
 - `out/legacylens.db` — SQLite snapshot (`projects`, `symbols`, `reports` tables) used as the semantic substrate for later phases
+
+### Compiler-verified traces (Layer 3)
+
+The `trace` command selects the most complex methods and builds, for each one, the grounded context the LLM layers consume:
+
+```bash
+# Trace the 20 most complex methods, mapping AppCAT incidents onto them
+dotnet run --project src/LegacyLens.CLI -- trace --solution /path/to/your.sln --appcat appcat-report.json --output out
+
+# Or target specific code
+dotnet run --project src/LegacyLens.CLI -- trace --solution /path/to/your.sln --project Billing --method Invoice --top 10
+```
+
+Each trace records the containing type and its inheritance chain, the resolved signature, calls split between solution code and framework, callers found across every project — including calls dispatched through interfaces — the domain state read and written, data flow, a control-flow graph summary, the AppCAT incidents inside the method, and the source split into token-bounded chunks at statement boundaries. A grounding flag reports whether the compiler resolved every symbol, so an unresolved name is never presented to the model as real.
+
+- `out/trace-index.md` — ranked summary of every traced method
+- `out/traces/NNN-Type.Method-hash.json` — structured trace for the LLM layers
+- `out/traces/NNN-Type.Method-hash.md` — the same trace rendered as prompt context, for review
+
+Output is deterministic: tracing the same solution twice produces byte-identical files.
 
 Requirements:
 - .NET 10 SDK — the only prerequisite. Visual Studio is **not** required, including for legacy non-SDK-style .NET Framework projects: LegacyLens stages the .NET Framework 2.0–4.8 reference assemblies itself, so a compiler-accurate load works on a bare SDK install and inside Linux containers.
@@ -200,6 +255,22 @@ list is where undocumented business rules accumulate, which is exactly what the
 | 122 | `SmartStore.Services.Orders.OrderProcessingService.PlaceOrder(...)` | SmartStoreNET |
 | 110 | `Nop.Services.Common.PdfService.PrintOrdersToPdf(...)` | nopCommerce |
 | 101 | `Nop.Services.Catalog.ProductService.SearchProducts(...)` — 27 parameters | nopCommerce |
+
+### Compiler-verified traces
+
+`trace` was run on the 20 most complex methods of each legacy solution:
+
+| Solution | Methods traced | Fully resolved by the compiler | Source chunks | ~Tokens |
+|---|---:|---:|---:|---:|
+| nopCommerce 3.90 | 20 | **20 of 20** | 28 | 80,090 |
+| SmartStoreNET 4.2.0 | 20 | **20 of 20** | 25 | 72,822 |
+
+Every symbol in these 40 traces was resolved by Roslyn, so none of the type or member names handed to
+the LLM layers can be hallucinated. Callers are found across project boundaries: nopCommerce's
+`ProductService.SearchProducts` is traced to `CatalogModelFactory` in the web project, which reaches
+it through the `IProductService` interface. Each solution traces in about 30 seconds, tracing the same
+solution twice produces byte-identical output, and AppCAT incidents land on the exact method line
+ranges — checked against an independent derivation from the raw AppCAT report, with zero mismatches.
 
 ### AppCAT integration
 

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using LegacyLens.Core.Analysis;
 using LegacyLens.Core.Analysis.Models;
 using LegacyLens.Core.AppCat;
+using LegacyLens.Core.Constraints;
+using LegacyLens.Core.Constraints.Models;
 using LegacyLens.Core.Ingestion;
 using LegacyLens.Core.Persistence;
 using LegacyLens.Core.Reporting;
@@ -17,6 +19,9 @@ public sealed record BaselineOptions
 
     public required string OutputDirectory { get; init; }
 
+    /// <summary>Optional organization constraint policy (JSON) to evaluate the solution against.</summary>
+    public string? ConstraintsPath { get; init; }
+
     public int TopComplexMethods { get; init; } = 20;
 }
 
@@ -31,6 +36,9 @@ public sealed record BaselineResult
     public required IReadOnlyList<ProjectSymbols> ProjectSymbols { get; init; }
 
     public required AppCatReport? AppCat { get; init; }
+
+    /// <summary>Result of evaluating the organization constraint policy, when one was supplied.</summary>
+    public ConstraintEvaluation? Constraints { get; init; }
 
     public required IReadOnlyList<string> WorkspaceDiagnostics { get; init; }
 
@@ -78,6 +86,14 @@ public sealed class AnalysisRunner
             appCat = AppCatReportParser.Parse(options.AppCatReportPath);
         }
 
+        ConstraintEvaluation? constraints = null;
+        if (options.ConstraintsPath is not null)
+        {
+            progress?.Report($"Evaluating organization constraints from {Path.GetFileName(options.ConstraintsPath)}");
+            var policy = ConstraintPolicyParser.Parse(options.ConstraintsPath);
+            constraints = ConstraintEvaluator.Evaluate(policy, analysis.Graph.Projects);
+        }
+
         var outputDirectory = Path.GetFullPath(options.OutputDirectory);
         Directory.CreateDirectory(outputDirectory);
         var reportPath = Path.Combine(outputDirectory, "solution-baseline.md");
@@ -91,6 +107,7 @@ public sealed class AnalysisRunner
             Graph = analysis.Graph,
             ProjectSymbols = symbols,
             AppCat = appCat,
+            Constraints = constraints,
             WorkspaceDiagnostics = analysis.WorkspaceDiagnostics,
             Elapsed = stopwatch.Elapsed,
             ReportPath = reportPath,

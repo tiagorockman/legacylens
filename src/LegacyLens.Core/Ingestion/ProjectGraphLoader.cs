@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using LegacyLens.Core.Ingestion.Models;
 using Microsoft.Build.Locator;
@@ -115,24 +116,48 @@ public sealed class ProjectGraphLoader
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var name = NormalizeProjectName(project.Name);
+        var packages = ResolvePackageReferences(project.FilePath);
+
         return new ProjectInfo
         {
-            Name = NormalizeProjectName(project.Name),
+            Name = name,
             FilePath = project.FilePath ?? "(in-memory)",
             TargetFramework = ResolveTargetFramework(project.FilePath),
             ProjectReferences = referencedNames,
-            PackageReferences = ResolvePackageReferences(project.FilePath),
+            PackageReferences = packages,
             DocumentCount = project.Documents.Count(),
             NeedsPackageRestore = NeedsPackageRestore(project.FilePath, solutionDirectory),
+            IsTestProject = IsTestProject(name, packages),
         };
     }
 
     /// <summary>Strips the TFM suffix Roslyn appends to multi-targeted projects ("Lib (net8.0)" → "Lib").</summary>
-    private static string NormalizeProjectName(string name)
+    internal static string NormalizeProjectName(string name)
     {
         var index = name.IndexOf(" (", StringComparison.Ordinal);
         return index > 0 && name.EndsWith(')') ? name[..index] : name;
     }
+
+    private static readonly HashSet<string> TestFrameworkPackages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Microsoft.NET.Test.Sdk",
+        "xunit",
+        "xunit.core",
+        "NUnit",
+        "MSTest.TestFramework",
+    };
+
+    private static readonly Regex TestProjectName = new(
+        @"(^|\.)(Unit|Integration|Functional)?Tests?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Package references are the reliable signal for SDK-style projects; legacy projects often
+    /// reference test frameworks through a HintPath instead, so the naming convention backs it up.
+    /// </summary>
+    internal static bool IsTestProject(string projectName, IReadOnlyList<PackageReferenceInfo> packages) =>
+        packages.Any(p => TestFrameworkPackages.Contains(p.Name)) || TestProjectName.IsMatch(projectName);
 
     /// <summary>
     /// A packages.config project whose solution has no packages folder was never restored — MSBuild

@@ -65,7 +65,7 @@ public sealed class SymbolExtractor
         return new ProjectSymbols(project.Name, errors.Count, records) { TopErrors = topErrors };
     }
 
-    private static IEnumerable<INamedTypeSymbol> EnumerateSourceTypes(INamespaceSymbol root)
+    internal static IEnumerable<INamedTypeSymbol> EnumerateSourceTypes(INamespaceSymbol root)
     {
         var namespaces = new Stack<INamespaceSymbol>();
         namespaces.Push(root);

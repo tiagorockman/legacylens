@@ -51,6 +51,22 @@ public sealed class ProjectGraphLoaderTests(SampleSolutionFixture fixture)
         Assert.Equal(".NET Framework v4.7.2", ProjectGraphLoader.ResolveTargetFramework(path));
     }
 
+    [Theory]
+    [InlineData("Nop.Web.MVC.Tests", false, true)]
+    [InlineData("ContosoUniversity.IntegrationTests", false, true)]
+    [InlineData("SmartStore.Core.Test", false, true)]
+    [InlineData("Contest.Scoring", false, false)]
+    [InlineData("Nop.Services", false, false)]
+    [InlineData("Acme.Verification", true, true)]
+    public void IsTestProject_UsesTestPackagesThenNamingConvention(string name, bool referencesXunit, bool expected)
+    {
+        IReadOnlyList<LegacyLens.Core.Ingestion.Models.PackageReferenceInfo> packages = referencesXunit
+            ? [new("xunit", "2.9.0")]
+            : [];
+
+        Assert.Equal(expected, ProjectGraphLoader.IsTestProject(name, packages));
+    }
+
     [Fact]
     public void NeedsPackageRestore_TrueOnlyForUnrestoredPackagesConfigProjects()
     {

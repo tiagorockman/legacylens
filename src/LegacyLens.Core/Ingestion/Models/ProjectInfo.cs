@@ -28,4 +28,7 @@ public sealed record ProjectInfo
     /// floods the baseline with meaningless type-resolution errors.
     /// </summary>
     public bool NeedsPackageRestore { get; init; }
+
+    /// <summary>Detected from test framework packages or a conventional *.Tests project name.</summary>
+    public bool IsTestProject { get; init; }
 }

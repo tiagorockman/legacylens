@@ -1,6 +1,7 @@
 using LegacyLens.Core;
 using LegacyLens.Core.Analysis.Models;
 using LegacyLens.Core.AppCat;
+using LegacyLens.Core.Constraints.Models;
 using LegacyLens.Core.Ingestion;
 using LegacyLens.Core.Ingestion.Models;
 using LegacyLens.Core.Reporting;
@@ -26,6 +27,57 @@ public sealed class BaselineReportGeneratorTests
         Assert.Contains("## AppCAT Incidents", markdown);
         Assert.Contains("| Mandatory | 2 |", markdown);
     }
+
+    [Fact]
+    public void GenerateMarkdown_WithConstraints_ReportsEveryVerdictAndItsFindings()
+    {
+        var evaluation = new ConstraintEvaluation
+        {
+            Policy = new ConstraintPolicy
+            {
+                SchemaVersion = 1,
+                Organization = "Contoso Ltd.",
+                Rules = [],
+                SourceName = "policy.json",
+            },
+            Results =
+            [
+                new ConstraintRuleResult
+                {
+                    RuleId = "PKG-001",
+                    Title = "No legacy EF",
+                    Kind = ConstraintRuleKind.ProhibitedPackages,
+                    Verdict = ConstraintVerdict.NonCompliant,
+                    ProjectsEvaluated = 2,
+                    Violations = [new ConstraintFinding("Web", "references prohibited package EntityFramework 6.4.4")],
+                    Unresolved = [],
+                },
+                new ConstraintRuleResult
+                {
+                    RuleId = "SEC-001",
+                    Title = "OAuth",
+                    Kind = ConstraintRuleKind.ManualReview,
+                    Verdict = ConstraintVerdict.RequiresHumanReview,
+                    ProjectsEvaluated = 2,
+                    Violations = [],
+                    Unresolved = [new ConstraintFinding("Web", "Confirm OAuth 2.0.")],
+                },
+            ],
+        };
+
+        var markdown = BaselineReportGenerator.GenerateMarkdown(CreateBaseline() with { Constraints = evaluation });
+
+        Assert.Contains("## Organization Constraints", markdown);
+        Assert.Contains("Contoso Ltd.", markdown);
+        Assert.Contains("❌ Non-compliant", markdown);
+        Assert.Contains("🔍 Requires human review", markdown);
+        Assert.Contains("references prohibited package EntityFramework 6.4.4", markdown);
+        Assert.Contains("Confirm OAuth 2.0.", markdown);
+    }
+
+    [Fact]
+    public void GenerateMarkdown_WithoutConstraints_OmitsTheSection() =>
+        Assert.DoesNotContain("## Organization Constraints", BaselineReportGenerator.GenerateMarkdown(CreateBaseline()));
 
     [Fact]
     public void GenerateMarkdown_WithoutAppCat_ExplainsHowToSupplyReport()

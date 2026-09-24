@@ -70,6 +70,27 @@ public sealed class LegacyLensDb : IDisposable
                 ("$created", createdUtc));
         }
 
+        foreach (var rule in baseline.Constraints?.Results ?? [])
+        {
+            Execute(
+                """
+                INSERT INTO constraints (run_id, policy, rule_id, title, kind, verdict,
+                    projects_evaluated, violations, unresolved, reason, created_utc)
+                VALUES ($run, $policy, $rule, $title, $kind, $verdict, $projects, $violations, $unresolved, $reason, $created)
+                """,
+                ("$run", baseline.RunId),
+                ("$policy", baseline.Constraints!.Policy.SourceName),
+                ("$rule", rule.RuleId),
+                ("$title", rule.Title),
+                ("$kind", rule.Kind.ToString()),
+                ("$verdict", rule.Verdict.ToString()),
+                ("$projects", rule.ProjectsEvaluated),
+                ("$violations", rule.Violations.Count),
+                ("$unresolved", rule.Unresolved.Count),
+                ("$reason", (object?)rule.Reason ?? DBNull.Value),
+                ("$created", createdUtc));
+        }
+
         Execute(
             """
             INSERT INTO reports (run_id, solution_path, total_incidents, project_count,
@@ -126,6 +147,21 @@ public sealed class LegacyLensDb : IDisposable
                 project_count INTEGER NOT NULL DEFAULT 0,
                 symbol_count INTEGER NOT NULL DEFAULT 0,
                 wall_clock_seconds REAL NOT NULL DEFAULT 0,
+                created_utc TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS constraints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                policy TEXT NOT NULL,
+                rule_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                projects_evaluated INTEGER NOT NULL DEFAULT 0,
+                violations INTEGER NOT NULL DEFAULT 0,
+                unresolved INTEGER NOT NULL DEFAULT 0,
+                reason TEXT,
                 created_utc TEXT NOT NULL
             );
 

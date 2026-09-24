@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "organization": "Example Organization (illustrative policy used for validation testing)",
+  "description": "A sample set of organization-specific technical constraints, written to exercise the evaluator against the open-source test subjects. It does not represent the policy of any real organization.",
+  "rules": [
+    {
+      "id": "TFM-001",
+      "title": "Projects must target a supported .NET release",
+      "kind": "approvedTargetFrameworks",
+      "frameworks": ["net8.0", "net10.0"],
+      "rationale": "Releases outside this list no longer receive security fixes, so remaining on them carries unmitigated risk."
+    },
+    {
+      "id": "PKG-001",
+      "title": "Legacy data-access and web stacks are prohibited",
+      "kind": "prohibitedPackages",
+      "packages": ["EntityFramework", "Microsoft.AspNet.Mvc", "Microsoft.AspNet.WebApi", "Microsoft.AspNet.WebPages"],
+      "rationale": "These packages are tied to .NET Framework and block migration to a supported runtime."
+    },
+    {
+      "id": "PKG-002",
+      "title": "Dependencies with published advisories must meet a minimum version",
+      "kind": "minimumPackageVersions",
+      "packageVersions": {
+        "AutoMapper": "10.0.0",
+        "Newtonsoft.Json": "13.0.1",
+        "Microsoft.AspNetCore.All": "2.1.0"
+      },
+      "rationale": "Versions below these carry published security advisories."
+    },
+    {
+      "id": "API-001",
+      "title": "API projects must not depend on the legacy WCF stack",
+      "kind": "prohibitedPackages",
+      "appliesTo": ["*.Api", "*.WebApi"],
+      "packages": ["System.ServiceModel", "System.ServiceModel.Primitives"],
+      "rationale": "Scoped rule: applies only to projects whose name identifies them as service APIs."
+    },
+    {
+      "id": "SEC-001",
+      "title": "Authentication must use OAuth 2.0 or OpenID Connect",
+      "kind": "manualReview",
+      "requirement": "Confirm that the application authenticates through OAuth 2.0 or OpenID Connect rather than Forms Authentication.",
+      "rationale": "Cannot be decided from dependency and symbol analysis alone; an engineer must verify the configured authentication flow."
+    },
+    {
+      "id": "ARCH-001",
+      "title": "Layered architecture boundaries must be respected",
+      "kind": "architecturalBoundaries",
+      "rationale": "Declared for a capability this version of the framework does not implement. It is reported as requiring human review rather than silently passing."
+    }
+  ]
+}

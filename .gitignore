@@ -492,4 +492,11 @@ TestLegacyProjects/**/*.db
 # Cloned test subjects (nested git repos)
 TestLegacyProjects/nopCommerce/
 TestLegacyProjects/SmartStoreNET/
-TestLegacyProjects/*.json
+TestLegacyProjects/.nuget/
+
+# AppCAT reports are regenerated per run; the constraint policy is versioned.
+TestLegacyProjects/*-appcat.json
+
+# Traces embed full method source from the third-party test subjects, which carry their own
+# licenses. Only trace-index.md is versioned: method names and metrics, no source.
+TestLegacyProjects/*-out/traces/
