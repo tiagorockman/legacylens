@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LegacyLens.Core.Analysis.Models;
+using LegacyLens.Core.BusinessLogic.Models;
 using Microsoft.Data.Sqlite;
 
 namespace LegacyLens.Core.Persistence;
@@ -108,6 +109,50 @@ public sealed class LegacyLensDb : IDisposable
         transaction.Commit();
     }
 
+    /// <summary>
+    /// Persists extracted domain rules (TDD §4.3 `business_logic`), keyed to the symbol they were
+    /// recovered from so they can be injected into later transformation prompts for that code path.
+    /// </summary>
+    /// <remarks>
+    /// The rubric scores and the model snapshot are stored with each rule rather than alongside the
+    /// run, because the confidence of an extraction belongs to that extraction: a later reviewer must
+    /// be able to see which model produced a given statement and how it scored.
+    /// </remarks>
+    public void SaveBusinessRules(string runId, IEnumerable<BusinessRule> rules)
+    {
+        using var transaction = _connection.BeginTransaction();
+        var createdUtc = DateTime.UtcNow.ToString("O");
+
+        foreach (var rule in rules)
+        {
+            Execute(
+                """
+                INSERT INTO business_logic (run_id, symbol_id, fqn, project, file_path, kind, statement,
+                    score_hallucination, score_completeness, score_readability, score_usefulness,
+                    model_snapshot, extracted_utc, created_utc)
+                VALUES ($run, $symbol, $fqn, $project, $file, $kind, $statement,
+                    $hallucination, $completeness, $readability, $usefulness,
+                    $model, $extracted, $created)
+                """,
+                ("$run", runId),
+                ("$symbol", rule.SymbolId),
+                ("$fqn", rule.FullyQualifiedName),
+                ("$project", rule.Project),
+                ("$file", (object?)rule.File ?? DBNull.Value),
+                ("$kind", rule.Kind.ToString()),
+                ("$statement", rule.Statement),
+                ("$hallucination", (object?)rule.Score?.Hallucination ?? DBNull.Value),
+                ("$completeness", (object?)rule.Score?.Completeness ?? DBNull.Value),
+                ("$readability", (object?)rule.Score?.Readability ?? DBNull.Value),
+                ("$usefulness", (object?)rule.Score?.Usefulness ?? DBNull.Value),
+                ("$model", rule.ModelSnapshot),
+                ("$extracted", rule.ExtractedUtc.ToString("O")),
+                ("$created", createdUtc));
+        }
+
+        transaction.Commit();
+    }
+
     private void EnsureSchema()
     {
         Execute(
@@ -165,6 +210,25 @@ public sealed class LegacyLensDb : IDisposable
                 created_utc TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS business_logic (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                symbol_id TEXT NOT NULL,
+                fqn TEXT NOT NULL,
+                project TEXT NOT NULL,
+                file_path TEXT,
+                kind TEXT NOT NULL,
+                statement TEXT NOT NULL,
+                score_hallucination INTEGER,
+                score_completeness INTEGER,
+                score_readability INTEGER,
+                score_usefulness INTEGER,
+                model_snapshot TEXT NOT NULL,
+                extracted_utc TEXT NOT NULL,
+                created_utc TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_business_logic_run_symbol ON business_logic (run_id, symbol_id);
             CREATE INDEX IF NOT EXISTS ix_symbols_run_fqn ON symbols (run_id, fqn);
             CREATE INDEX IF NOT EXISTS ix_projects_run ON projects (run_id);
             """);
