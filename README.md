@@ -2,7 +2,7 @@
 
 > **AI-Assisted .NET/C# Legacy Modernization Agent**
 
-![Status](https://img.shields.io/badge/status-Phase%201%20Nearly%20Complete-green)
+![Status](https://img.shields.io/badge/status-Phase%202%20In%20Progress-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-.NET%2010-purple)
 ![LLM](https://img.shields.io/badge/LLM-Anthropic%20Claude-orange)
@@ -135,10 +135,12 @@ Security is treated as part of the modernization lifecycle rather than a step pe
 
 | Phase | Timeline | Status |
 |-------|----------|--------|
-| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | 🟢 Nearly Complete — pipeline functional and [validated on 3 OSS solutions](TestLegacyProjects/README.md); Layer 3 `TraceBuilder` implemented and validated |
-| **Phase 2** — Business Logic Extraction (Anthropic API + SQLite persistence + arXiv preprint) | Aug–Nov 2026 | ⬜ Planned |
-| **Phase 3** — Full Transformation Pipeline (5-role agents + HIPAA/PCI DSS patterns + pilots) | Nov 2026–Mar 2027 | ⬜ Planned |
-| **Phase 4** — Production & Validation (Docker + enterprise pilots + academic publication) | Mar–Aug 2027 | ⬜ Planned |
+| **Phase 1** — Deterministic Core (MSBuildWorkspace + Roslyn graph + AppCAT + GitHub repo) | May–Aug 2026 | ✅ Complete — [validated on 3 OSS solutions](TestLegacyProjects/README.md); Layer 3 `TraceBuilder` and organization constraint evaluation delivered beyond the original scope |
+| **Phase 2** — Business Logic Extraction (Anthropic API + SQLite persistence + arXiv preprint) | Aug 2026–Feb 2027 | 🟡 In Progress — persistence schema and provider-neutral client abstraction implemented; the extraction agent itself is not yet implemented |
+| **Phase 3** — Full Transformation Pipeline (5-role agents + HIPAA/PCI DSS patterns + pilots) | Feb–Aug 2027 | ⬜ Planned |
+| **Phase 4** — Production & Validation (Docker + enterprise pilots + academic publication) | Aug–Dec 2027 | ⬜ Planned |
+
+Phase timelines follow the project's Technical Design Document.
 
 ---
 
@@ -155,7 +157,7 @@ LegacyLens is grounded in peer-reviewed research:
 
 ## Getting Started
 
-> ⚠️ **Phase 1 is actively in development.** The deterministic core — baseline reports and compiler-verified method traces — is functional; LLM-powered layers arrive in Phase 2+.
+> **Phase 1 is complete.** The deterministic core — baseline reports, compiler-verified method traces, and organization constraint evaluation — is functional and validated against three open-source solutions. Phase 2 is in progress; no LLM-assisted capability is available yet.
 
 ```bash
 # Clone the repository
